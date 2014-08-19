@@ -5,6 +5,9 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.os.SystemClock;
 
+import com.google.vrtoolkit.cardboard.EyeTransform;
+import com.google.vrtoolkit.cardboard.HeadTransform;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -15,6 +18,7 @@ import javax.microedition.khronos.opengles.GL10;
 public class MyRenderer implements GLSurfaceView.Renderer {
     private float[] mModelMatrix = new float[16];       // ワールド行列
     private float[] mViewMatrix = new float[16];        // ビュー行列
+    private float[] mViewMatrixOrigin = new float[16];        // ビュー行列(起点)
     private float[] mProjectionMatrix = new float[16];  // 射影行列
     private float[] mMVPMatrix = new float[16];         // これらの積行列
 
@@ -58,13 +62,11 @@ public class MyRenderer implements GLSurfaceView.Renderer {
     // サーフェスが初めて作成された際・再作成された際に呼ばれる
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);  // 描画領域を黒色でクリア
-
         // カメラ(ビュー行列)を設定
-        final float[] eye = {0.0f, 0.0f, 1.5f};
-        final float[] look = {0.0f, 0.0f, -5.0f};
+        final float[] eye = {0.0f, 0.0f, -2.0f};
+        final float[] look = {0.0f, 0.0f, 0.0f};
         final float[] up = {0.0f, 1.0f, 0.0f};
-        Matrix.setLookAtM(mViewMatrix, 0, eye[0], eye[1], eye[2], look[0], look[1], look[2], up[0], up[1], up[2]);
+        Matrix.setLookAtM(mViewMatrixOrigin, 0, eye[0], eye[1], eye[2], look[0], look[1], look[2], up[0], up[1], up[2]);
 
         // バーテックスシェーダ
         final String vertexShader =
@@ -153,8 +155,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         if (mProgramHandle == 0) {
             throw new RuntimeException("Error creating program.");
         }
-
-
     }
 
     // 画面回転時など、サーフェスが変更された際に呼ばれる
@@ -174,7 +174,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         Matrix.frustumM(mProjectionMatrix, 0, left, right, bottom, top, near, far);
     }
 
-    public void onNewFrame(GL10 unused) {
+    public void onNewFrame(HeadTransform headTransform) {
         // シェーダプログラム適用
         GLES20.glUseProgram(mProgramHandle);
 
@@ -193,13 +193,18 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         Matrix.rotateM(mModelMatrix, 0, angleInDegrees, 0.0f, 0.0f, 1.0f);  // 回転行列
     }
 
-    // 新しいフレームを描画する度に呼ばれる
-    @Override
-    public void onDrawFrame(GL10 gl) {
+    public void onDrawFrame(EyeTransform transform) {
+        GLES20.glClearColor(1.0f, 1.0f, 1.0f, 0.5f);
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);  // バッファのクリア
+
+        Matrix.multiplyMM(mViewMatrix, 0, transform.getEyeView(), 0, mViewMatrixOrigin, 0);
 
         drawTriangle(mTriangleVertices);
     }
+
+    // 新しいフレームを描画する度に呼ばれる
+    @Override
+    public void onDrawFrame(GL10 gl) {    }
 
     // 三角形を描画する
     private void drawTriangle(final FloatBuffer aTriangleBuffer) {

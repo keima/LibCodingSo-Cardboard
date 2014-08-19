@@ -57,14 +57,14 @@ public class MainActivity extends CardboardActivity
     public void onNewFrame(HeadTransform headTransform) {
         Log.d(TAG, "onNewFrame()");
 
-        mRenderer.onNewFrame(null);
+        mRenderer.onNewFrame(headTransform);
     }
 
     @Override
     public void onDrawEye(EyeTransform eyeTransform) {
         Log.d(TAG, "onDrawEye()");
 
-        mRenderer.onDrawFrame(null);
+        mRenderer.onDrawFrame(eyeTransform);
 
 //        mPlayer.render(this);
     }
@@ -78,7 +78,7 @@ public class MainActivity extends CardboardActivity
     public void onSurfaceChanged(int width, int height) {
         Log.d(TAG, "onSurfaceChanged(" + width + "," + height + ")");
 
-        mRenderer.onSurfaceChanged(null, width / 2, height / 2);
+        mRenderer.onSurfaceChanged(null, width, height);
     }
 
     @Override
