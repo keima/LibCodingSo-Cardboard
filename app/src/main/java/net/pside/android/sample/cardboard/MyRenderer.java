@@ -4,6 +4,7 @@ import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.os.SystemClock;
+import android.util.Log;
 
 import com.google.vrtoolkit.cardboard.EyeTransform;
 import com.google.vrtoolkit.cardboard.HeadTransform;
@@ -43,14 +44,45 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                 // (座標属性) X, Y, Z,
                 // (色属性) R, G, B, A
 
-                -0.5f, -0.25f, 0.0f,
+                // 1
+                0.0f, 0.0f, 0.0f,
                 1.0f, 0.0f, 0.0f, 1.0f,
 
-                0.5f, -0.25f, 0.0f,
+                0.5f, 0.86f, 0.0f,
+                1.0f, 0.0f, 0.0f, 1.0f,
+
+                0.0f, 1.0f, 0.0f,
+                1.0f, 0.0f, 0.0f, 1.0f,
+
+                // 2
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f, 1.0f,
+
+                0.5f, 0.43f, 0.81f,
+                0.0f, 1.0f, 0.0f, 1.0f,
+
+                0.5f, 0.86f, 0.0f,
+                0.0f, 1.0f, 0.0f, 1.0f,
+
+                // 3
+                0.0f, 0.0f, 0.0f,
                 0.0f, 0.0f, 1.0f, 1.0f,
 
-                0.0f, 0.559016994f, 0.0f,
-                0.0f, 1.0f, 0.0f, 1.0f
+                0.5f, 0.43f, 0.81f,
+                0.0f, 0.0f, 1.0f, 1.0f,
+
+                0.5f, 0.86f, 0.0f,
+                0.0f, 0.0f, 1.0f, 1.0f,
+
+                // 4
+                0.0f, 0.0f, 0.0f,
+                1.0f, 0.0f, 0.0f, 1.0f,
+
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f, 1.0f,
+
+                0.5f, 0.43f, 0.81f,
+                0.0f, 0.0f, 1.0f, 1.0f,
         };
         // バッファを確保し、バイトオーダーをネイティブに合わせる(Javaとネイティブではバイトオーダーが異なる)
         mTriangleVertices = ByteBuffer.allocateDirect(triangleVerticesData.length * mBytesPerFloat)
@@ -79,7 +111,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
                         + "void main()                    \n"
                         + "{                              \n"
                         + "   v_Color = a_Color;          \n"
-
                         + "   gl_Position = u_MVPMatrix   \n"
                         + "               * a_Position;   \n"
                         + "}                              \n";
@@ -155,6 +186,8 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         if (mProgramHandle == 0) {
             throw new RuntimeException("Error creating program.");
         }
+
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
     }
 
     // 画面回転時など、サーフェスが変更された際に呼ばれる
@@ -171,6 +204,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         final float near = 1.0f;
         final float far = 10.0f;
 
+        Log.d("MyRenderer", "(left/right/bottom/top/near/far): " + left + "/" + right  + "/" +  bottom  + "/" + top + "/" + near + "/" + far);
         Matrix.frustumM(mProjectionMatrix, 0, left, right, bottom, top, near, far);
     }
 
@@ -190,7 +224,7 @@ public class MyRenderer implements GLSurfaceView.Renderer {
 
         // ワールド行列に対して回転をかける
         Matrix.setIdentityM(mModelMatrix, 0);  // 単位行列でリセット
-        Matrix.rotateM(mModelMatrix, 0, angleInDegrees, 0.0f, 0.0f, 1.0f);  // 回転行列
+        Matrix.rotateM(mModelMatrix, 0, angleInDegrees, 0.5f, 0.5f, 0.5f);  // 回転行列
     }
 
     public void onDrawFrame(EyeTransform transform) {
@@ -222,6 +256,6 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
         GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);
 
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3);  // 三角形を描画
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 12);  // 三角形を描画
     }
 }

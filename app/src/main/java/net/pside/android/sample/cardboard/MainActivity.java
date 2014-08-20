@@ -1,7 +1,6 @@
 package net.pside.android.sample.cardboard;
 
 import android.os.Bundle;
-import android.util.Log;
 
 import com.google.vrtoolkit.cardboard.CardboardActivity;
 import com.google.vrtoolkit.cardboard.CardboardView;
@@ -9,11 +8,8 @@ import com.google.vrtoolkit.cardboard.EyeTransform;
 import com.google.vrtoolkit.cardboard.HeadTransform;
 import com.google.vrtoolkit.cardboard.Viewport;
 
-import java.io.IOException;
-
 import javax.microedition.khronos.egl.EGLConfig;
 
-import jp.nyatla.nymmd.MmdException;
 import jp.nyatla.nymmd.android.AndMmdMotionPlayerGLES20;
 import jp.nyatla.nymmd.android.AndMmdPmdModel;
 import jp.nyatla.nymmd.android.AndMmdVmdMotion;
@@ -44,47 +40,42 @@ public class MainActivity extends CardboardActivity
 
         mRenderer = new MyRenderer();
 
-        try {
+        /*try {
             mPmdModel = new AndMmdPmdModel(getAssets(), "model/Miku_Hatsune.pmd");
             mVmdMotion = new AndMmdVmdMotion(getAssets(), "motion/kishimen.vmd");
         } catch (MmdException | IOException e) {
             e.printStackTrace();
-        }
+        }*/
     }
 
     // region CardboardView.StereoRenderer
     @Override
     public void onNewFrame(HeadTransform headTransform) {
-        Log.d(TAG, "onNewFrame()");
-
+//        Log.d(TAG, "onNewFrame()");
         mRenderer.onNewFrame(headTransform);
     }
 
     @Override
     public void onDrawEye(EyeTransform eyeTransform) {
-        Log.d(TAG, "onDrawEye()");
-
+//        Log.d(TAG, "onDrawEye()");
         mRenderer.onDrawFrame(eyeTransform);
-
 //        mPlayer.render(this);
     }
 
     @Override
     public void onFinishFrame(Viewport viewport) {
-        Log.d(TAG, "onFinishFrame()");
+//        Log.d(TAG, "onFinishFrame()");
     }
 
     @Override
     public void onSurfaceChanged(int width, int height) {
-        Log.d(TAG, "onSurfaceChanged(" + width + "," + height + ")");
-
+//        Log.d(TAG, "onSurfaceChanged(" + width + "," + height + ")");
         mRenderer.onSurfaceChanged(null, width, height);
     }
 
     @Override
     public void onSurfaceCreated(EGLConfig eglConfig) {
-        Log.d(TAG, "onSurfaceCreated()");
-
+//        Log.d(TAG, "onSurfaceCreated()");
         mRenderer.onSurfaceCreated(null, eglConfig);
 
 /*        mPlayer = new AndMmdMotionPlayerGLES20();
@@ -100,7 +91,7 @@ public class MainActivity extends CardboardActivity
 
     @Override
     public void onRendererShutdown() {
-        Log.d(TAG, "onRenderShutdown()");
+//        Log.d(TAG, "onRenderShutdown()");
 //        mPlayer.dispose();
     }
     // endregion
