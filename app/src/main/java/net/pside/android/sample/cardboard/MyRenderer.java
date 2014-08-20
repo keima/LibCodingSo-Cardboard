@@ -1,22 +1,22 @@
 package net.pside.android.sample.cardboard;
 
 import android.opengl.GLES20;
-import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.google.vrtoolkit.cardboard.CardboardView;
 import com.google.vrtoolkit.cardboard.EyeTransform;
 import com.google.vrtoolkit.cardboard.HeadTransform;
+import com.google.vrtoolkit.cardboard.Viewport;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 
 import javax.microedition.khronos.egl.EGLConfig;
-import javax.microedition.khronos.opengles.GL10;
 
-public class MyRenderer implements GLSurfaceView.Renderer {
+public class MyRenderer implements CardboardView.StereoRenderer {
     private float[] mModelMatrix = new float[16];       // ワールド行列
     private float[] mViewMatrix = new float[16];        // ビュー行列
     private float[] mViewMatrixOrigin = new float[16];        // ビュー行列(起点)
@@ -91,10 +91,81 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         mTriangleVertices.put(triangleVerticesData).position(0);  // データをバッファへ
     }
 
-    // サーフェスが初めて作成された際・再作成された際に呼ばれる
     @Override
-    public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-        // カメラ(ビュー行列)を設定
+    public void onNewFrame(HeadTransform headTransform) {
+        // シェーダプログラム適用
+        GLES20.glUseProgram(mProgramHandle);
+
+        // ハンドル(ポインタ)の取得
+        mMVPMatrixHandle = GLES20.glGetUniformLocation(mProgramHandle, "u_MVPMatrix");
+        mPositionHandle = GLES20.glGetAttribLocation(mProgramHandle, "a_Position");
+        mColorHandle = GLES20.glGetAttribLocation(mProgramHandle, "a_Color");
+
+        // プリミティブをアニメーション
+        // 経過秒から回転角度を求める(10秒/周)
+        long time = SystemClock.uptimeMillis() % 10000L;
+        float angleInDegrees = (360.0f / 10000.0f) * ((int) time);
+
+        // ワールド行列に対して回転をかける
+        Matrix.setIdentityM(mModelMatrix, 0);  // 単位行列でリセット
+        Matrix.rotateM(mModelMatrix, 0, angleInDegrees, 1.0f, 0.0f, 0.0f);  // 回転行列
+    }
+
+    // 三角形を描画する
+    private void drawTriangle(final FloatBuffer aTriangleBuffer) {
+        // OpenGLに頂点バッファを渡す
+        aTriangleBuffer.position(mPositionOffset);  // 頂点バッファを座標属性にセット
+        GLES20.glVertexAttribPointer(mPositionHandle, mPositionDataSize, GLES20.GL_FLOAT, false, mStrideBytes, aTriangleBuffer);  // ポインタと座標属性を結び付ける
+        GLES20.glEnableVertexAttribArray(mPositionHandle);  // 座標属性有効
+
+        aTriangleBuffer.position(mColorOffset);  // 頂点バッファを色属性にセット
+        GLES20.glVertexAttribPointer(mColorHandle, mColorDataSize, GLES20.GL_FLOAT, false, mStrideBytes, aTriangleBuffer);  // ポインタと色属性を結び付ける
+        GLES20.glEnableVertexAttribArray(mColorHandle);  // 色属性有効
+
+        // ワールド行列×ビュー行列×射影行列をセット
+        Matrix.multiplyMM(mMVPMatrix, 0, mViewMatrix, 0, mModelMatrix, 0);
+        Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
+        GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 12);  // 三角形を描画
+    }
+
+    @Override
+    public void onDrawEye(EyeTransform eyeTransform) {
+        GLES20.glClearColor(1.0f, 1.0f, 1.0f, 0.5f);
+        GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);  // バッファのクリア
+
+        Matrix.multiplyMM(mViewMatrix, 0, eyeTransform.getEyeView(), 0, mViewMatrixOrigin, 0);
+        mViewMatrix = mViewMatrixOrigin.clone();
+
+        drawTriangle(mTriangleVertices);
+    }
+
+    @Override
+    public void onFinishFrame(Viewport viewport) {
+
+    }
+
+    @Override
+    public void onSurfaceChanged(int width, int height) {
+// スクリーンが変わり画角を変更する場合、射影行列を作り直す
+        GLES20.glViewport(0, 0, width, height);
+
+        final float ratio = (float) width / height;
+        final float left = -ratio;
+        final float right = ratio;
+        final float bottom = -1.0f;
+        final float top = 1.0f;
+        final float near = 1.0f;
+        final float far = 10.0f;
+
+        Log.d("MyRenderer", "(left/right/bottom/top/near/far): " + left + "/" + right + "/" + bottom + "/" + top + "/" + near + "/" + far);
+        Matrix.frustumM(mProjectionMatrix, 0, left, right, bottom, top, near, far);
+    }
+
+    @Override
+    public void onSurfaceCreated(EGLConfig eglConfig) {
+// カメラ(ビュー行列)を設定
         final float[] eye = {0.0f, 0.0f, -2.0f};
         final float[] look = {0.0f, 0.0f, 0.0f};
         final float[] up = {0.0f, 1.0f, 0.0f};
@@ -190,72 +261,8 @@ public class MyRenderer implements GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_DEPTH_TEST);
     }
 
-    // 画面回転時など、サーフェスが変更された際に呼ばれる
     @Override
-    public void onSurfaceChanged(GL10 gl, int width, int height) {
-        // スクリーンが変わり画角を変更する場合、射影行列を作り直す
-        GLES20.glViewport(0, 0, width, height);
+    public void onRendererShutdown() {
 
-        final float ratio = (float) width / height;
-        final float left = -ratio;
-        final float right = ratio;
-        final float bottom = -1.0f;
-        final float top = 1.0f;
-        final float near = 1.0f;
-        final float far = 10.0f;
-
-        Log.d("MyRenderer", "(left/right/bottom/top/near/far): " + left + "/" + right  + "/" +  bottom  + "/" + top + "/" + near + "/" + far);
-        Matrix.frustumM(mProjectionMatrix, 0, left, right, bottom, top, near, far);
-    }
-
-    public void onNewFrame(HeadTransform headTransform) {
-        // シェーダプログラム適用
-        GLES20.glUseProgram(mProgramHandle);
-
-        // ハンドル(ポインタ)の取得
-        mMVPMatrixHandle = GLES20.glGetUniformLocation(mProgramHandle, "u_MVPMatrix");
-        mPositionHandle = GLES20.glGetAttribLocation(mProgramHandle, "a_Position");
-        mColorHandle = GLES20.glGetAttribLocation(mProgramHandle, "a_Color");
-
-        // プリミティブをアニメーション
-        // 経過秒から回転角度を求める(10秒/周)
-        long time = SystemClock.uptimeMillis() % 10000L;
-        float angleInDegrees = (360.0f / 10000.0f) * ((int) time);
-
-        // ワールド行列に対して回転をかける
-        Matrix.setIdentityM(mModelMatrix, 0);  // 単位行列でリセット
-        Matrix.rotateM(mModelMatrix, 0, angleInDegrees, 0.5f, 0.5f, 0.5f);  // 回転行列
-    }
-
-    public void onDrawFrame(EyeTransform transform) {
-        GLES20.glClearColor(1.0f, 1.0f, 1.0f, 0.5f);
-        GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);  // バッファのクリア
-
-        Matrix.multiplyMM(mViewMatrix, 0, transform.getEyeView(), 0, mViewMatrixOrigin, 0);
-
-        drawTriangle(mTriangleVertices);
-    }
-
-    // 新しいフレームを描画する度に呼ばれる
-    @Override
-    public void onDrawFrame(GL10 gl) {    }
-
-    // 三角形を描画する
-    private void drawTriangle(final FloatBuffer aTriangleBuffer) {
-        // OpenGLに頂点バッファを渡す
-        aTriangleBuffer.position(mPositionOffset);  // 頂点バッファを座標属性にセット
-        GLES20.glVertexAttribPointer(mPositionHandle, mPositionDataSize, GLES20.GL_FLOAT, false, mStrideBytes, aTriangleBuffer);  // ポインタと座標属性を結び付ける
-        GLES20.glEnableVertexAttribArray(mPositionHandle);  // 座標属性有効
-
-        aTriangleBuffer.position(mColorOffset);  // 頂点バッファを色属性にセット
-        GLES20.glVertexAttribPointer(mColorHandle, mColorDataSize, GLES20.GL_FLOAT, false, mStrideBytes, aTriangleBuffer);  // ポインタと色属性を結び付ける
-        GLES20.glEnableVertexAttribArray(mColorHandle);  // 色属性有効
-
-        // ワールド行列×ビュー行列×射影行列をセット
-        Matrix.multiplyMM(mMVPMatrix, 0, mViewMatrix, 0, mModelMatrix, 0);
-        Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
-        GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);
-
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 12);  // 三角形を描画
     }
 }
