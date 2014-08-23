@@ -10,9 +10,13 @@ import com.google.vrtoolkit.cardboard.EyeTransform;
 import com.google.vrtoolkit.cardboard.HeadTransform;
 import com.google.vrtoolkit.cardboard.Viewport;
 
+import org.apache.commons.lang3.ArrayUtils;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.util.ArrayList;
 
 import javax.microedition.khronos.egl.EGLConfig;
 
@@ -23,7 +27,10 @@ public class MyRenderer implements CardboardView.StereoRenderer {
     private float[] mProjectionMatrix = new float[16];  // 射影行列
     private float[] mMVPMatrix = new float[16];         // これらの積行列
 
-    private final FloatBuffer mTriangleVertices;  // 頂点バッファ
+    private int mNumberOfVertex;
+    private final FloatBuffer mVertices;  // 頂点バッファ
+    private final FloatBuffer mColors;  // 色バッファ
+    private final IntBuffer mIndices; // Indexの複数形
 
     private int mMVPMatrixHandle;  // u_MVPMatrixのハンドル
     private int mPositionHandle;   // a_Positionのハンドル
@@ -84,11 +91,92 @@ public class MyRenderer implements CardboardView.StereoRenderer {
                 0.5f, 0.43f, 0.81f,
                 0.0f, 0.0f, 1.0f, 1.0f,
         };
+
+        Torus torus = generateTorus(40, 128, 10, 20);
+
+        mNumberOfVertex = torus.index.length;
         // バッファを確保し、バイトオーダーをネイティブに合わせる(Javaとネイティブではバイトオーダーが異なる)
-        mTriangleVertices = ByteBuffer.allocateDirect(triangleVerticesData.length * mBytesPerFloat)
+        mVertices = ByteBuffer.allocateDirect(torus.position.length * mBytesPerFloat)
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer();
-        mTriangleVertices.put(triangleVerticesData).position(0);  // データをバッファへ
+        mVertices.put(torus.position).position(0);  // データをバッファへ
+
+        mColors = ByteBuffer.allocateDirect(torus.color.length * mBytesPerFloat)
+                .order(ByteOrder.nativeOrder())
+                .asFloatBuffer();
+        mColors.put(torus.color).position(0);
+
+        mIndices = ByteBuffer.allocateDirect(torus.index.length * 4)
+                .order(ByteOrder.nativeOrder())
+                .asIntBuffer();
+        mIndices.put(torus.index).position(0);
+    }
+
+    private class Torus {
+        float[] position;
+        float[] color;
+        int[] index;
+
+        private Torus(float[] position, float[] color, int[] index) {
+            this.position = position;
+            this.color = color;
+            this.index = index;
+        }
+    }
+
+    private Torus generateTorus(int row, int column, int irad, int orad) {
+        ArrayList<Float> pos = new ArrayList<>(), col = new ArrayList<>();
+
+        for (int i = 0; i <= row; i++) {
+            double r, rr, ry;
+            r = Math.PI * 2 / row * i;
+            rr = Math.cos(r);
+            ry = Math.sin(r);
+
+            for (int j = 0; j <= column; j++) {
+                double tr, tx, ty, tz;
+                tr = Math.PI * 2 / column * j;
+                tx = (rr * irad + orad) * Math.cos(tr);
+                ty = ry * irad;
+                tz = (rr * irad + orad) * Math.sin(tr);
+
+                pos.add(new Float(tx));
+                pos.add(new Float(ty));
+                pos.add(new Float(tz));
+
+                int[] tc = ColorUtil.HSVtoRGB(360 / column * j, 1, 1);
+
+//                col.add((float) tc[0]);
+//                col.add((float) tc[1]);
+//                col.add((float) tc[2]);
+                col.add(new Float(tx));
+                col.add(new Float(ty));
+                col.add(new Float(tz));
+                col.add(1.0f); // alpha
+            }
+        }
+
+        ArrayList<Integer> idx = new ArrayList<>();
+        for (int i = 0; i < row; i++) {
+            for (int j = 0; j < column; j++) {
+                int r = (column + 1) * i + j;
+
+                idx.add(r);
+                idx.add((r + column + 1));
+                idx.add((r + 1));
+
+                idx.add((r + column + 1));
+                idx.add((r + column + 2));
+                idx.add((r + 1));
+
+            }
+        }
+
+        return new Torus(
+                ArrayUtils.toPrimitive(pos.toArray(new Float[0])),
+                ArrayUtils.toPrimitive(col.toArray(new Float[0])),
+                ArrayUtils.toPrimitive(idx.toArray(new Integer[0]))
+        );
     }
 
     @Override
@@ -112,14 +200,16 @@ public class MyRenderer implements CardboardView.StereoRenderer {
     }
 
     // 三角形を描画する
-    private void drawTriangle(final FloatBuffer aTriangleBuffer) {
+    private void drawTriangle() {
         // OpenGLに頂点バッファを渡す
-        aTriangleBuffer.position(mPositionOffset);  // 頂点バッファを座標属性にセット
-        GLES20.glVertexAttribPointer(mPositionHandle, mPositionDataSize, GLES20.GL_FLOAT, false, mStrideBytes, aTriangleBuffer);  // ポインタと座標属性を結び付ける
+//        aTriangleBuffer.position(mPositionOffset);  // 頂点バッファを座標属性にセット
+        mVertices.position(0);
+        GLES20.glVertexAttribPointer(mPositionHandle, mPositionDataSize, GLES20.GL_FLOAT, false, 0, mVertices);  // ポインタと座標属性を結び付ける
         GLES20.glEnableVertexAttribArray(mPositionHandle);  // 座標属性有効
 
-        aTriangleBuffer.position(mColorOffset);  // 頂点バッファを色属性にセット
-        GLES20.glVertexAttribPointer(mColorHandle, mColorDataSize, GLES20.GL_FLOAT, false, mStrideBytes, aTriangleBuffer);  // ポインタと色属性を結び付ける
+//        aTriangleBuffer.position(mColorOffset);  // 頂点バッファを色属性にセット
+        mColors.position(0);
+        GLES20.glVertexAttribPointer(mColorHandle, mColorDataSize, GLES20.GL_FLOAT, false, 0, mColors);  // ポインタと色属性を結び付ける
         GLES20.glEnableVertexAttribArray(mColorHandle);  // 色属性有効
 
         // ワールド行列×ビュー行列×射影行列をセット
@@ -127,18 +217,20 @@ public class MyRenderer implements CardboardView.StereoRenderer {
         Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
         GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);
 
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 12);  // 三角形を描画
+//        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 12);  // 三角形を描画
+        mIndices.position(0);
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, mNumberOfVertex, GLES20.GL_UNSIGNED_INT, mIndices);
     }
 
     @Override
     public void onDrawEye(EyeTransform eyeTransform) {
-        GLES20.glClearColor(1.0f, 1.0f, 1.0f, 0.5f);
+        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // 背景色
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);  // バッファのクリア
 
         Matrix.multiplyMM(mViewMatrix, 0, eyeTransform.getEyeView(), 0, mViewMatrixOrigin, 0);
-        mViewMatrix = mViewMatrixOrigin.clone();
+//        mViewMatrix = mViewMatrixOrigin.clone();
 
-        drawTriangle(mTriangleVertices);
+        drawTriangle();
     }
 
     @Override
@@ -148,7 +240,7 @@ public class MyRenderer implements CardboardView.StereoRenderer {
 
     @Override
     public void onSurfaceChanged(int width, int height) {
-// スクリーンが変わり画角を変更する場合、射影行列を作り直す
+        // スクリーンが変わり画角を変更する場合、射影行列を作り直す
         GLES20.glViewport(0, 0, width, height);
 
         final float ratio = (float) width / height;
@@ -157,7 +249,7 @@ public class MyRenderer implements CardboardView.StereoRenderer {
         final float bottom = -1.0f;
         final float top = 1.0f;
         final float near = 1.0f;
-        final float far = 10.0f;
+        final float far = 100.0f;
 
         Log.d("MyRenderer", "(left/right/bottom/top/near/far): " + left + "/" + right + "/" + bottom + "/" + top + "/" + near + "/" + far);
         Matrix.frustumM(mProjectionMatrix, 0, left, right, bottom, top, near, far);
@@ -165,8 +257,8 @@ public class MyRenderer implements CardboardView.StereoRenderer {
 
     @Override
     public void onSurfaceCreated(EGLConfig eglConfig) {
-// カメラ(ビュー行列)を設定
-        final float[] eye = {0.0f, 0.0f, -2.0f};
+        // カメラ(ビュー行列)を設定
+        final float[] eye = {0.0f, 0.0f, -50.0f};
         final float[] look = {0.0f, 0.0f, 0.0f};
         final float[] up = {0.0f, 1.0f, 0.0f};
         Matrix.setLookAtM(mViewMatrixOrigin, 0, eye[0], eye[1], eye[2], look[0], look[1], look[2], up[0], up[1], up[2]);
@@ -176,7 +268,6 @@ public class MyRenderer implements CardboardView.StereoRenderer {
                 "uniform mat4 u_MVPMatrix;      \n"
                         + "attribute vec4 a_Position;     \n"
                         + "attribute vec4 a_Color;        \n"
-
                         + "varying vec4 v_Color;          \n"
 
                         + "void main()                    \n"
@@ -189,7 +280,6 @@ public class MyRenderer implements CardboardView.StereoRenderer {
         // フラグメントシェーダ
         final String fragmentShader =
                 "precision mediump float;       \n"
-
                         + "varying vec4 v_Color;          \n"
 
                         + "void main()                    \n"
