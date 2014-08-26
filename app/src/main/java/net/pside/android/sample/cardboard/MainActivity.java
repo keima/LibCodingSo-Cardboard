@@ -35,7 +35,10 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         // Initialize View
         setContentView(R.layout.activity_main);
         CardboardView cardboardView = (CardboardView) findViewById(R.id.cardboard_view);
+
+        // フレームレート計測をしたいのでthis指定してるけどメインロジックはMyRendererに書いてある
         cardboardView.setRenderer(this);
+
         cardboardView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
