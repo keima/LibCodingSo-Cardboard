@@ -20,81 +20,41 @@ import java.util.ArrayList;
 
 import javax.microedition.khronos.egl.EGLConfig;
 
+/**
+ * トーラスをレンダリングする
+ * 記述した実装の多くは以下のサイトを参考にさせていただきました。
+ *   レンダリングの流れと行列演算: http://wonderpla.net/blog/engineer/GLSurfaceView/
+ *   トーラス図形の生成: http://wgld.org/d/webgl/w020.html
+ */
 public class MyRenderer implements CardboardView.StereoRenderer {
     private float[] mModelMatrix = new float[16];       // ワールド行列
     private float[] mViewMatrix = new float[16];        // ビュー行列
-    private float[] mViewMatrixOrigin = new float[16];        // ビュー行列(起点)
+    private float[] mViewMatrixOrigin = new float[16];  // ビュー行列(起点)
     private float[] mProjectionMatrix = new float[16];  // 射影行列
     private float[] mMVPMatrix = new float[16];         // これらの積行列
 
-    private int mNumberOfVertex;
+    private int mNumberOfVertex;          // 頂点の数
     private final FloatBuffer mVertices;  // 頂点バッファ
-    private final FloatBuffer mColors;  // 色バッファ
-    private final IntBuffer mIndices; // Indexの複数形
+    private final FloatBuffer mColors;    // 色バッファ
+    private final IntBuffer mIndices;     // 頂点インデックスバッファ(Index -> Indices)
+
+
+    private int mProgramHandle;    // シェーダプログラムのハンドル
 
     private int mMVPMatrixHandle;  // u_MVPMatrixのハンドル
     private int mPositionHandle;   // a_Positionのハンドル
     private int mColorHandle;      // a_Colorのハンドル
 
-    private final int mBytesPerFloat = 4;                                  // floatのバイト数
-    private final int mStrideBytes = 7 * mBytesPerFloat;                   // ストライドバイト数
-    private final int mPositionOffset = 0;                                 // 位置情報の先頭位置
-    private final int mPositionDataSize = 3;                               // 位置情報のデータサイズ
-    private final int mColorOffset = mPositionOffset + mPositionDataSize;  // 色情報の先頭位置
-    private final int mColorDataSize = 4;                                  // 色情報のデータサイズ
-    private int mProgramHandle;
+    private final int mBytesPerFloat = 4;    // floatのバイト数
+    private final int mPositionDataSize = 3; // 位置情報のデータサイズ
+    private final int mColorDataSize = 4;    // 色情報のデータサイズ
 
     public MyRenderer() {
-        // 頂点バッファ生成
-        final float[] triangleVerticesData = {
-                // 各頂点情報
-                // (座標属性) X, Y, Z,
-                // (色属性) R, G, B, A
-
-                // 1
-                0.0f, 0.0f, 0.0f,
-                1.0f, 0.0f, 0.0f, 1.0f,
-
-                0.5f, 0.86f, 0.0f,
-                1.0f, 0.0f, 0.0f, 1.0f,
-
-                0.0f, 1.0f, 0.0f,
-                1.0f, 0.0f, 0.0f, 1.0f,
-
-                // 2
-                0.0f, 1.0f, 0.0f,
-                0.0f, 1.0f, 0.0f, 1.0f,
-
-                0.5f, 0.43f, 0.81f,
-                0.0f, 1.0f, 0.0f, 1.0f,
-
-                0.5f, 0.86f, 0.0f,
-                0.0f, 1.0f, 0.0f, 1.0f,
-
-                // 3
-                0.0f, 0.0f, 0.0f,
-                0.0f, 0.0f, 1.0f, 1.0f,
-
-                0.5f, 0.43f, 0.81f,
-                0.0f, 0.0f, 1.0f, 1.0f,
-
-                0.5f, 0.86f, 0.0f,
-                0.0f, 0.0f, 1.0f, 1.0f,
-
-                // 4
-                0.0f, 0.0f, 0.0f,
-                1.0f, 0.0f, 0.0f, 1.0f,
-
-                0.0f, 1.0f, 0.0f,
-                0.0f, 1.0f, 0.0f, 1.0f,
-
-                0.5f, 0.43f, 0.81f,
-                0.0f, 0.0f, 1.0f, 1.0f,
-        };
-
+        // 頂点、色、頂点インデックスの作成
         Torus torus = generateTorus(40, 128, 10, 20);
 
         mNumberOfVertex = torus.index.length;
+
         // バッファを確保し、バイトオーダーをネイティブに合わせる(Javaとネイティブではバイトオーダーが異なる)
         mVertices = ByteBuffer.allocateDirect(torus.position.length * mBytesPerFloat)
                 .order(ByteOrder.nativeOrder())
@@ -144,18 +104,16 @@ public class MyRenderer implements CardboardView.StereoRenderer {
                 pos.add(new Float(ty));
                 pos.add(new Float(tz));
 
-                int[] tc = ColorUtil.HSVtoRGB(360 / column * j, 1, 1);
-
-//                col.add((float) tc[0]);
-//                col.add((float) tc[1]);
-//                col.add((float) tc[2]);
-                col.add(new Float(tx));
-                col.add(new Float(ty));
-                col.add(new Float(tz));
-                col.add(1.0f); // alpha
+                // 本当はきれいなグラデーションを付けたかったけど
+                // int[] tc = ColorUtil.HSVtoRGB(360 / column * j, 1, 1);
+                col.add(new Float(tx)); // r
+                col.add(new Float(ty)); // g
+                col.add(new Float(tz)); // b
+                col.add(1.0f);          // alpha
             }
         }
 
+        // 頂点インデックスの作成
         ArrayList<Integer> idx = new ArrayList<>();
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < column; j++) {
@@ -199,16 +157,26 @@ public class MyRenderer implements CardboardView.StereoRenderer {
         Matrix.rotateM(mModelMatrix, 0, angleInDegrees, 1.0f, 0.0f, 0.0f);  // 回転行列
     }
 
+    @Override
+    public void onDrawEye(EyeTransform eyeTransform) {
+        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // 背景色
+        GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);  // バッファのクリア
+
+        Matrix.multiplyMM(mViewMatrix, 0, eyeTransform.getEyeView(), 0, mViewMatrixOrigin, 0);
+//        mViewMatrix = mViewMatrixOrigin.clone(); // コメントアウトでヘッドトラッキングを無効にする
+
+        drawTriangle();
+    }
+
     // 三角形を描画する
     private void drawTriangle() {
         // OpenGLに頂点バッファを渡す
-//        aTriangleBuffer.position(mPositionOffset);  // 頂点バッファを座標属性にセット
-        mVertices.position(0);
+
+        mVertices.position(0); // 頂点バッファを座標属性にセット
         GLES20.glVertexAttribPointer(mPositionHandle, mPositionDataSize, GLES20.GL_FLOAT, false, 0, mVertices);  // ポインタと座標属性を結び付ける
         GLES20.glEnableVertexAttribArray(mPositionHandle);  // 座標属性有効
 
-//        aTriangleBuffer.position(mColorOffset);  // 頂点バッファを色属性にセット
-        mColors.position(0);
+        mColors.position(0); // 頂点バッファを色属性にセット
         GLES20.glVertexAttribPointer(mColorHandle, mColorDataSize, GLES20.GL_FLOAT, false, 0, mColors);  // ポインタと色属性を結び付ける
         GLES20.glEnableVertexAttribArray(mColorHandle);  // 色属性有効
 
@@ -217,25 +185,13 @@ public class MyRenderer implements CardboardView.StereoRenderer {
         Matrix.multiplyMM(mMVPMatrix, 0, mProjectionMatrix, 0, mMVPMatrix, 0);
         GLES20.glUniformMatrix4fv(mMVPMatrixHandle, 1, false, mMVPMatrix, 0);
 
-//        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 12);  // 三角形を描画
         mIndices.position(0);
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, mNumberOfVertex, GLES20.GL_UNSIGNED_INT, mIndices);
     }
 
     @Override
-    public void onDrawEye(EyeTransform eyeTransform) {
-        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // 背景色
-        GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);  // バッファのクリア
-
-        Matrix.multiplyMM(mViewMatrix, 0, eyeTransform.getEyeView(), 0, mViewMatrixOrigin, 0);
-//        mViewMatrix = mViewMatrixOrigin.clone();
-
-        drawTriangle();
-    }
-
-    @Override
     public void onFinishFrame(Viewport viewport) {
-
+        // 今回使わなかった
     }
 
     @Override

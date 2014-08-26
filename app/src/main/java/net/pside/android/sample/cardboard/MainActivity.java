@@ -15,26 +15,12 @@ import java.util.TimerTask;
 
 import javax.microedition.khronos.egl.EGLConfig;
 
-import jp.nyatla.nymmd.android.AndMmdMotionPlayerGLES20;
-import jp.nyatla.nymmd.android.AndMmdPmdModel;
-import jp.nyatla.nymmd.android.AndMmdVmdMotion;
-
 public class MainActivity extends CardboardActivity implements CardboardView.StereoRenderer {
     private static final String TAG = MainActivity.class.getSimpleName();
 
-    // PMD model / VMD motion
-    AndMmdPmdModel mPmdModel;
-    AndMmdVmdMotion mVmdMotion;
-
-    AndMmdMotionPlayerGLES20 mPlayer;
-
     MyRenderer mRenderer;
-
     FrameRate mFrameRate;
-
     Timer mTimer;
-
-    private int mGlProgram;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +29,7 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
         mRenderer = new MyRenderer();
         mFrameRate = new FrameRate();
         mTimer = new Timer();
+
         mTimer.scheduleAtFixedRate(mTimerTask, 1000, 1000);
 
         // Initialize View
@@ -56,13 +43,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
             }
         });
         setCardboardView(cardboardView);
-
-        /*try {
-            mPmdModel = new AndMmdPmdModel(getAssets(), "model/Miku_Hatsune.pmd");
-            mVmdMotion = new AndMmdVmdMotion(getAssets(), "motion/kishimen.vmd");
-        } catch (MmdException | IOException e) {
-            e.printStackTrace();
-        }*/
     }
 
     @Override
@@ -79,7 +59,6 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     public void onDrawEye(EyeTransform eyeTransform) {
         mRenderer.onDrawEye(eyeTransform);
-//        mPlayer.render(this);
     }
 
     public void onFinishFrame(Viewport viewport) {
@@ -92,24 +71,12 @@ public class MainActivity extends CardboardActivity implements CardboardView.Ste
 
     public void onSurfaceCreated(EGLConfig eglConfig) {
         mRenderer.onSurfaceCreated(eglConfig);
-
-/*        mPlayer = new AndMmdMotionPlayerGLES20();
-
-        try {
-            mPlayer.setPmd(mPmdModel);
-            mPlayer.setVmd(mVmdMotion);
-        } catch (MmdException e) {
-            e.printStackTrace();
-        }
-        */
     }
 
     public void onRendererShutdown() {
         mRenderer.onRendererShutdown();
-//        mPlayer.dispose();
     }
     // endregion
-
 
     @Override
     protected void onDestroy() {
