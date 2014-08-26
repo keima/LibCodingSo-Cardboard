@@ -84,12 +84,20 @@ public class MyRenderer implements CardboardView.StereoRenderer {
         }
     }
 
+    /**
+     * <a href="http://ja.wikipedia.org/wiki/%E3%83%88%E3%83%BC%E3%83%A9%E3%82%B9">トーラス</a>をレンダリングするための 頂点, 色, 頂点インデックス を出力する
+     * @param row     トーラスを構成する円の枚数(ドーナツを何分割するか)
+     * @param column  円のなめらかさ(三角形、四角形、・・・n角形)
+     * @param irad    円の半径
+     * @param orad    トーラスの半径(含 円の半径)
+     * @return        Torus
+     */
     private Torus generateTorus(int row, int column, int irad, int orad) {
         ArrayList<Float> pos = new ArrayList<>(), col = new ArrayList<>();
 
         for (int i = 0; i <= row; i++) {
             double r, rr, ry;
-            r = Math.PI * 2 / row * i;
+            r = Math.PI * 2 / row * i; // ラジアン(弧度)を算出 (2π / 辺の総数 から 辺の現在点を掛ける)
             rr = Math.cos(r);
             ry = Math.sin(r);
 
